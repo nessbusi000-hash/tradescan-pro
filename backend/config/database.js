@@ -1,44 +1,32 @@
-/**
- * Configuration de la base de données PostgreSQL
- * ===============================================
- */
-
 const { Pool } = require('pg');
 const logger = require('./logger');
 
-// Configuration du pool de connexions
-const poolConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 5432,
-  database: process.env.DB_NAME || 'tradescan',
-  user: process.env.DB_USER || 'postgres',
-  password: String(process.env.DB_PASSWORD || '774322'),
-
-  // Configuration du pool
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-
-  // SSL en production
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false }
-    : false,
-};
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT) || 5432,
+      database: process.env.DB_NAME || 'tradescan',
+      user: process.env.DB_USER || 'postgres',
+      password: String(process.env.DB_PASSWORD || '774322'),
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+      ssl: false,
+    };
 
 const pool = new Pool(poolConfig);
 
-// Gestion des événements du pool
-pool.on('connect', (client) => {
-  logger.debug('Nouveau client connecté à la base de données');
-});
-
-pool.on('error', (err, client) => {
+pool.on('error', (err) => {
   logger.error('Erreur inattendue sur le client PostgreSQL', err);
 });
 
-/**
- * Exécute une requête SQL
- */
 const query = async (text, params) => {
   const start = Date.now();
   try {
@@ -59,13 +47,9 @@ const query = async (text, params) => {
   }
 };
 
-/**
- * Récupère un client du pool pour les transactions
- */
 const getClient = async () => {
   const client = await pool.connect();
   const query = client.query.bind(client);
-
   client.query = async (text, params) => {
     const start = Date.now();
     try {
@@ -84,13 +68,9 @@ const getClient = async () => {
       throw error;
     }
   };
-
   return client;
 };
 
-/**
- * Vérifie la connexion à la base de données
- */
 const checkConnection = async () => {
   try {
     const result = await query('SELECT NOW() as current_time');
@@ -104,18 +84,9 @@ const checkConnection = async () => {
   }
 };
 
-/**
- * Ferme proprement le pool de connexions
- */
 const closePool = async () => {
   await pool.end();
   logger.info('Pool de connexions PostgreSQL fermé');
 };
 
-module.exports = {
-  pool,
-  query,
-  getClient,
-  checkConnection,
-  closePool,
-};
+module.exports = { pool, query, getClient, checkConnection, closePool };
