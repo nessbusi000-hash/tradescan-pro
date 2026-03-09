@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tradescan
+      POSTGRES_USER: tradescan_user
+      POSTGRES_PASSWORD: tradescan_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: tradescan
+      DB_USER: tradescan_user
+      DB_PASSWORD: tradescan_secret
+      JWT_SECRET: changeme_super_secret_jwt_key_min_32_chars
+      JWT_REFRESH_SECRET: changeme_refresh_secret_key_32_chars
+      FRONTEND_URL: http://localhost:5173
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:
